@@ -1,0 +1,56 @@
+version: "3.7"
+services:
+  app:
+    build:
+      args:
+        user: sammy
+        uid: 1000
+      context: ./
+      dockerfile: Dockerfile
+    image: pes-v2
+    container_name: pes-v2-app
+    restart: unless-stopped
+    working_dir: /var/www/
+    volumes:
+      - ./:/var/www
+      - ./docker-compose/xdebug/xdebug.ini:/usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini
+    ## we wait for the MySQL container to be up and running
+    ## then we run the migration
+    ## and finally we start apache
+    entrypoint: sh -c "sleep 30 && php /var/www/artisan migrate"
+    networks:
+      - pes-v2
+
+  db:
+    image: mysql:8.0
+    container_name: pes-v2-db
+    restart: unless-stopped
+    ports:
+      - 1235:3306
+    environment:
+      MYSQL_DATABASE: ${DB_DATABASE}
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+      MYSQL_USER: ${DB_USERNAME}
+      SERVICE_TAGS: dev
+      SERVICE_NAME: mysql
+    volumes:
+      - ./docker-compose/mysql:/docker-entrypoint-initdb.d
+    networks:
+      - pes-v2
+
+  nginx:
+    image: nginx:alpine
+    container_name: pes-v2-nginx
+    restart: unless-stopped
+    ports:
+      - 1234:80
+    volumes:
+      - ./:/var/www
+      - ./docker-compose/nginx:/etc/nginx/conf.d/
+    networks:
+      - pes-v2
+
+networks:
+  pes-v2:
+    driver: bridge
